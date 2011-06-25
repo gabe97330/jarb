@@ -34,9 +34,9 @@
         </dependency>
         <dependency>
             <!-- Include groovy support by default -->
-            <groupId>org.liquibase</groupId>
-            <artifactId>liquibase-ext-groovy</artifactId>
-            <version>1.0</version>
+            <groupId>com.augusttechgroup</groupId>
+            <artifactId>groovy-liquibase</artifactId>
+            <version>0.1</version>
             <exclusions>
                 <exclusion>
                 	<!-- Gossip clashes with other logging -->
@@ -45,7 +45,14 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        
+        <!--
+        ** groovy dependency not included by trivial gradle maven install task I added to groovy-liquibase
+        -->
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>1.7.5</version>
+        </dependency>
 		<dependency>
             <!-- Used to insert a record into our newly migrated schema -->
             <groupId>org.springframework</groupId>
