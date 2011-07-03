@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.jarb.populator.excel.DefaultExcelTestDataCase;
@@ -17,15 +18,15 @@ import org.junit.Test;
 import domain.entities.Customer;
 
 public class ClassDefinitionTest extends DefaultExcelTestDataCase {
-    private ClassDefinition.Builder<Customer> classDefinitionBuilder;
-    private ClassDefinition<? super Customer> customerDefinition;
+    private EntityDefinition.Builder<Customer> classDefinitionBuilder;
+    private EntityDefinition<? super Customer> customerDefinition;
 
     @Before
     public void setUpClassDefinitions() throws InvalidFormatException, IOException {
         // Retrieve full customer definition from meta model generator
-        customerDefinition = generateMetamodel().describe(Customer.class);
+        customerDefinition = generateMetamodel().entity(Customer.class);
         // Build a customer class definition
-        classDefinitionBuilder = ClassDefinition.forClass(Customer.class).setTableName("customers");
+        classDefinitionBuilder = EntityDefinition.forClass(Customer.class).setTableName("customers");
     }
 
     @Test
@@ -39,8 +40,8 @@ public class ClassDefinitionTest extends DefaultExcelTestDataCase {
         for (Field field : Customer.class.getDeclaredFields()) {
             columnDefinitions.add(FieldAnalyzer.analyzeField(field).build());
         }
-        classDefinitionBuilder.includeColumns(columnDefinitions);
-        List<PropertyDefinition> resultColumnDefinitions = classDefinitionBuilder.build().getPropertyDefinitions();
+        classDefinitionBuilder.includeProperties(columnDefinitions);
+        Set<PropertyDefinition> resultColumnDefinitions = classDefinitionBuilder.build().properties();
         for(PropertyDefinition columnDefinition : columnDefinitions) {
             assertTrue(resultColumnDefinitions.contains(columnDefinition));
         }
@@ -65,7 +66,7 @@ public class ClassDefinitionTest extends DefaultExcelTestDataCase {
 
     @Test
     public void testGetColumnDefinitionByColumnName() throws InstantiationException, ClassNotFoundException, IllegalAccessException {
-        assertEquals("company_name", customerDefinition.getPropertyDefinitionByColumn("company_name").getColumnName());
+        assertEquals("company_name", customerDefinition.propertyByColumnName("company_name").getColumnName());
     }
 
 }

@@ -3,7 +3,7 @@ package org.jarb.populator.excel.mapping.importer;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.jarb.populator.excel.metamodel.ClassDefinition;
+import org.jarb.populator.excel.metamodel.EntityDefinition;
 import org.jarb.populator.excel.metamodel.PropertyDefinition;
 import org.jarb.populator.excel.workbook.Sheet;
 import org.jarb.populator.excel.workbook.Workbook;
@@ -28,12 +28,12 @@ public class WorksheetDefinition {
      * @param excel The Excel file to read from
      * @return WorksheetDefinition with column names and positions
      */
-    public static WorksheetDefinition analyzeWorksheet(final ClassDefinition<?> classDefinition, final Workbook excel) {
+    public static WorksheetDefinition analyzeWorksheet(final EntityDefinition<?> classDefinition, final Workbook excel) {
         WorksheetDefinition worksheetDefinition = new WorksheetDefinition();
         LOGGER.debug("Analyzing worksheet: [" + classDefinition.getTableName() + "]");
         Sheet sheet = excel.getSheet(classDefinition.getTableName());
 
-        for (PropertyDefinition columnDefinition : classDefinition.getPropertyDefinitions()) {
+        for (PropertyDefinition columnDefinition : classDefinition.properties()) {
             final String columnName = columnDefinition.getColumnName();
             LOGGER.debug("  field name: [" + columnDefinition.getName() + "], column name: [" + columnName + "]");
             if (columnDefinition.hasColumn()) {

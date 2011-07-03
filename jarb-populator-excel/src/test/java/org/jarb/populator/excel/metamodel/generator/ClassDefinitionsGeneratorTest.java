@@ -1,11 +1,9 @@
 package org.jarb.populator.excel.metamodel.generator;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -18,13 +16,12 @@ import javax.persistence.metamodel.Metamodel;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.jarb.populator.excel.DefaultExcelTestDataCase;
 import org.jarb.populator.excel.mapping.importer.WorksheetDefinition;
-import org.jarb.populator.excel.metamodel.ClassDefinition;
+import org.jarb.populator.excel.metamodel.EntityDefinition;
 import org.jarb.populator.excel.metamodel.PropertyDefinition;
 import org.jarb.populator.excel.workbook.Workbook;
-import org.jarb.populator.excel.workbook.reader.PoiExcelParser;
+import org.jarb.populator.excel.workbook.reader.PoiWorkbookParser;
 import org.junit.Before;
 import org.junit.Test;
-import org.springframework.util.ReflectionUtils;
 
 public class ClassDefinitionsGeneratorTest extends DefaultExcelTestDataCase {
 
@@ -39,40 +36,15 @@ public class ClassDefinitionsGeneratorTest extends DefaultExcelTestDataCase {
     }
 
     @Test
-    public void testClassDefinitionsGeneration() throws UnsupportedEncodingException, InstantiationException, IllegalAccessException, ClassNotFoundException,
-            SecurityException, NoSuchFieldException {
-        List<ClassDefinition<?>> classDefinitionsGenerated = ClassDefinitionsGenerator.createClassDefinitionsFromMetamodel(getEntityManagerFactory());
-
-        List<String> classDefinitionsManual = new ArrayList<String>();
-        classDefinitionsManual.add("NoTableAnnotation");
-        classDefinitionsManual.add("customers");
-        classDefinitionsManual.add("documents");
-        classDefinitionsManual.add("document_revisions");
-        classDefinitionsManual.add("departments");
-        classDefinitionsManual.add("employees");
-        classDefinitionsManual.add("employees_projects_workspaces");
-        classDefinitionsManual.add("projects");
-        classDefinitionsManual.add("vehicles");
-        classDefinitionsManual.add("sla");
-        classDefinitionsManual.add("gifts");
-        classDefinitionsManual.add("releases");
-        classDefinitionsManual.add("workspaces");
-        
-        for(ClassDefinition<?> classDefinition : classDefinitionsGenerated) {
-            assertTrue(classDefinition.getTableName() + " was not expected.", classDefinitionsManual.contains(classDefinition.getTableName()));
-        }
-    }
-
-    @Test
     public void testCreateSingleClassDefinition() throws InstantiationException, IllegalAccessException, ClassNotFoundException, SecurityException,
             NoSuchFieldException {
         Class<?> persistentClass = domain.entities.Department.class;
 
         Metamodel metamodel = getEntityManagerFactory().getMetamodel();
-        EntityType<?> entity = ClassDefinitionsGenerator.getEntityFromMetamodel(domain.entities.Department.class, metamodel);
+        EntityType<?> entity = metamodel.entity(domain.entities.Department.class);
 
-        ClassDefinition<?> classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, false);
-        PropertyDefinition generated = classDefinition.getPropertyDefinition("departmentName");
+        EntityDefinition<?> classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, false);
+        PropertyDefinition generated = classDefinition.property("departmentName");
         Field departmentNameField = persistentClass.getDeclaredField("departmentName");
         assertEquals(departmentNameField, generated.getField());
     }
@@ -83,62 +55,24 @@ public class ClassDefinitionsGeneratorTest extends DefaultExcelTestDataCase {
         Class<?> subClass = domain.entities.SpecialCustomer.class;
 
         Metamodel metamodel = getEntityManagerFactory().getMetamodel();
-        EntityType<?> entity = ClassDefinitionsGenerator.getEntityFromMetamodel(domain.entities.Customer.class, metamodel);
+        EntityType<?> entity = metamodel.entity(domain.entities.Customer.class);
 
-        ClassDefinition<?> classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, true);
-        PropertyDefinition generated = classDefinition.getPropertyDefinition("location");
+        EntityDefinition<?> classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, true);
+        PropertyDefinition generated = classDefinition.property("location");
         Field companyLocationField = subClass.getDeclaredField("location");
         assertEquals(companyLocationField, generated.getField());
     }
 
-    @Test
-    public void testCreateSingleClassDefinitionNull() throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        Metamodel metamodel = getEntityManagerFactory().getMetamodel();
-        EntityType<?> entity = ClassDefinitionsGenerator.getEntityFromMetamodel(domain.entities.UnannotatedClass.class, metamodel);
-
-        ClassDefinition<?> classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, false);
-        assertEquals(null, classDefinition);
-    }
-
-    @Test
-    public void testCreateClassDefinitionsFromMetamodel() throws ClassNotFoundException, SecurityException, InstantiationException, IllegalAccessException,
-            NoSuchFieldException {
-        List<ClassDefinition<?>> classDefinitionList = ClassDefinitionsGenerator.createClassDefinitionsFromMetamodel(getEntityManagerFactory());
-
-        for (ClassDefinition<?> classDefinition : classDefinitionList) {
-            // Check if it holds a persistent class
-            Class<?> persistentClass = classDefinition.getEntityClass();
-            assertTrue(persistentClass != null);
-
-            for (PropertyDefinition columnDefinition : classDefinition.getPropertyDefinitions()) {
-                Field field = ReflectionUtils.findField(persistentClass, columnDefinition.getName());
-
-                if ((field == null) && columnDefinition.isEmbeddedAttribute()) {
-                    // It's an embedded attribute.
-                    Field embeddedField = columnDefinition.getField();
-                    field = embeddedField.getDeclaringClass().getDeclaredField(columnDefinition.getName());
-                }
-
-                // Check if field is valid
-                if (field != null) {
-                    assertEquals(field.getName(), columnDefinition.getName());
-                }
-            }
-
-        }
-
-    }
-
     public void testAddWorksheetDefinitionsToClassDefinitions() throws InvalidFormatException, IOException, InstantiationException, ClassNotFoundException,
             IllegalAccessException {
-        Workbook excel = new PoiExcelParser().parse(new FileInputStream("src/test/resources/Excel.xls"));
+        Workbook excel = new PoiWorkbookParser().parse(new FileInputStream("src/test/resources/Excel.xls"));
 
-        List<ClassDefinition<?>> classDefinitions = new ArrayList<ClassDefinition<?>>();
+        List<EntityDefinition<?>> classDefinitions = new ArrayList<EntityDefinition<?>>();
         Metamodel metamodel = getEntityManagerFactory().getMetamodel();
-        EntityType<?> entity = ClassDefinitionsGenerator.getEntityFromMetamodel(domain.entities.Department.class, metamodel);
+        EntityType<?> entity = metamodel.entity(domain.entities.Department.class);
 
         classDefinitions.add(ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(getEntityManagerFactory(), entity, false));
-        ClassDefinition<?> classDefinition = classDefinitions.get(0);
+        EntityDefinition<?> classDefinition = classDefinitions.get(0);
         Integer columnPosition = 1;
         assertEquals(columnPosition, WorksheetDefinition.analyzeWorksheet(classDefinition, excel).getColumnPosition("db_column"));
     }

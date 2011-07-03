@@ -6,8 +6,9 @@ import java.util.HashSet;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.metamodel.EntityType;
 
-import org.jarb.populator.excel.metamodel.ClassDefinition;
+import org.jarb.populator.excel.metamodel.EntityDefinition;
 import org.jarb.populator.excel.metamodel.MetaModel;
+import org.jarb.utils.database.JpaMetaModelUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,28 +35,39 @@ public class JpaMetaModelGenerator implements MetaModelGenerator {
      */
     @Override
     public MetaModel generate() {
-        Collection<ClassDefinition<?>> classDefinitions = new HashSet<ClassDefinition<?>>();
-        for (EntityType<?> entityType : entityManagerFactory.getMetamodel().getEntities()) {
-            ClassDefinition<?> classDefinition = describeEntityType(entityType);
-            if (classDefinition != null) {
-                classDefinitions.add(classDefinition);
-            }
+        Collection<EntityDefinition<?>> entities = new HashSet<EntityDefinition<?>>();
+        for (EntityType<?> entityType : JpaMetaModelUtils.getRootEntities(entityManagerFactory.getMetamodel())) {
+            entities.add(describeEntity(entityType));
         }
-        return new MetaModel(classDefinitions);
+        return new MetaModel(entities);
     }
-
+    
     /**
-     * Generate the {@link ClassDefinition} of a specific entity type.
+     * {@inheritDoc}
+     */
+    @Override
+    public MetaModel generateFor(Collection<Class<?>> entityClasses) {
+        Collection<EntityDefinition<?>> entities = new HashSet<EntityDefinition<?>>();
+        for (Class<?> entityClass : entityClasses) {
+            EntityType<?> entityType = entityManagerFactory.getMetamodel().entity(entityClass);
+            entities.add(describeEntity(entityType));
+        }
+        return new MetaModel(entities);
+    }
+    
+    /**
+     * Generate the {@link EntityDefinition} of a specific entity type.
      * @param entityType type of entity being inspected
      * @return definition of the class
      */
-    private ClassDefinition<?> describeEntityType(EntityType<?> entityType) {
+    private EntityDefinition<?> describeEntity(EntityType<?> entityType) {
         try {
-            LOGGER.debug("Generating metamodel definition of '{}'.", entityType.getJavaType().getName());
+            LOGGER.debug("Generating metamodel definition of '{}'...", entityType.getJavaType().getName());
             return ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(entityManagerFactory, entityType, true);
         } catch (Exception e) {
             // TODO: Delegating class should not be throwing this many exceptions
             throw new RuntimeException(e);
         }
     }
+
 }

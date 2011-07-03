@@ -1,21 +1,15 @@
 package org.jarb.populator.excel.metamodel.generator;
 
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.persistence.Entity;
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.Table;
 import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.Metamodel;
 
-import org.jarb.populator.excel.metamodel.ClassDefinition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jarb.populator.excel.metamodel.EntityDefinition;
+import org.jarb.utils.database.JpaMetaModelUtils;
 
 /**
  * Class which is responsible for generating a list of ready-to-be-used ClassDefinitions containing columns, a persistent class, etc.
@@ -23,50 +17,7 @@ import org.slf4j.LoggerFactory;
  * @author Sander Benschop
  *
  */
-public final class ClassDefinitionsGenerator {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ClassDefinitionsGenerator.class);
-
-    /** Private constructor. */
-    private ClassDefinitionsGenerator() {
-    }
-
-    /**
-     * Used to create a list of all ClassDefinitions that can be made from the metamodel.
-     * Classes that need to be persisted should be annotated with @Entity, otherwise they will not be picked up.
-     * @param entityManagerFactory EntityManagerFactory from the ApplicationContext file
-     * @return List of ClassDefinitions, still without a worksheetDefinition 
-     * @throws ClassNotFoundException Throws if a class cannot be found
-     * @throws InstantiationException Thrown when function is used on a class that cannot be instantiated (abstract or interface)
-     * @throws IllegalAccessException Thrown when function does not have access to the definition of the specified class, field, method or constructor 
-     */
-    public static List<ClassDefinition<?>> createClassDefinitionsFromMetamodel(EntityManagerFactory entityManagerFactory) throws ClassNotFoundException,
-            InstantiationException, IllegalAccessException {
-        Metamodel metamodel = entityManagerFactory.getMetamodel();
-        Set<EntityType<?>> entities = metamodel.getEntities();
-
-        return createClassDefinitionList(entityManagerFactory, entities);
-    }
-
-    /**
-     * Creates a list of ClassDefinitions by calling the createSingleClassDefinitionFromMetamodel function several times.
-     * @param entityManagerFactory EntityManagerFactory needed to gather the metamodel from
-     * @param entities List of entities from the metamodel
-     * @return List of ClassDefinitions
-     * @throws ClassNotFoundException Throws if a class cannot be found
-     * @throws InstantiationException Thrown when function is used on a class that cannot be instantiated (abstract or interface)
-     * @throws IllegalAccessException Thrown when function does not have access to the definition of the specified class, field, method or constructor 
-     */
-    private static List<ClassDefinition<?>> createClassDefinitionList(EntityManagerFactory entityManagerFactory, Set<EntityType<?>> entities)
-            throws InstantiationException, ClassNotFoundException, IllegalAccessException {
-        List<ClassDefinition<?>> classDefinitionList = new ArrayList<ClassDefinition<?>>();
-        for (EntityType<?> entity : entities) {
-            ClassDefinition<?> classDefinition = createSingleClassDefinitionFromMetamodel(entityManagerFactory, entity, true);
-            if (classDefinition != null) {
-                classDefinitionList.add(classDefinition);
-            }
-        }
-        return classDefinitionList;
-    }
+public class ClassDefinitionsGenerator {
 
     /**
      * Used to create a ClassDefinition, is used by the function createClassDefinitionsFromMetamodel but can also be used to create a single ClassDefinition.
@@ -80,7 +31,7 @@ public final class ClassDefinitionsGenerator {
      * @throws InstantiationException Thrown when function is used on a class that cannot be instantiated (abstract or interface)
      * @throws IllegalAccessException Thrown when function does not have access to the definition of the specified class, field, method or constructor 
      */
-    public static ClassDefinition<?> createSingleClassDefinitionFromMetamodel(EntityManagerFactory entityManagerFactory, EntityType<?> entity,
+    public static EntityDefinition<?> createSingleClassDefinitionFromMetamodel(EntityManagerFactory entityManagerFactory, EntityType<?> entity,
             boolean includeSubClasses) throws InstantiationException, ClassNotFoundException, IllegalAccessException {
         Metamodel metamodel = entityManagerFactory.getMetamodel();
 
@@ -105,128 +56,23 @@ public final class ClassDefinitionsGenerator {
      * @throws IllegalAccessException Thrown when function does not have access to the definition of the specified class, field, method or constructor 
      */
     @SuppressWarnings("unchecked")
-    private static <T> ClassDefinition<T> createClassDefinitionFromEntity(EntityType<T> entity, Set<EntityType<?>> entities, Set<EntityType<?>> subClassEntities)
+    private static <T> EntityDefinition<T> createClassDefinitionFromEntity(EntityType<T> entity, Set<EntityType<?>> entities, Set<EntityType<?>> subClassEntities)
             throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        ClassDefinition<T> classDefinition = null;
-        if (entity != null) {
-            Class<T> persistentClass = (Class<T>) Class.forName(entity.getName());
-            ClassDefinition.Builder<T> classDefinitionBuilder = createBasicClassDefinition(entities, entity, persistentClass);
-            if (classDefinitionBuilder != null) {
-                classDefinitionBuilder.includeColumns(ColumnDefinitionsGenerator.createPropertyDefinitions(subClassEntities, entity, persistentClass));
-                if(!subClassEntities.isEmpty()) {
-                    classDefinitionBuilder.setDiscriminatorColumnName(DiscriminatorColumnGenerator.getDiscriminatorColumnName(persistentClass));
-                    for(Map.Entry<String, Class<?>> subClassMapping : SubclassRetriever.getSubClassMapping(subClassEntities).entrySet()) {
-                        classDefinitionBuilder.includeSubClass(subClassMapping.getKey(), (Class<? extends T>) subClassMapping.getValue());
-                    }
-                }
-                classDefinition = classDefinitionBuilder.build();
+        final Class<T> entityClass = entity.getJavaType();
+        EntityDefinition.Builder<T> builder = EntityDefinition.forClass(entityClass);
+        builder.setTableName(JpaMetaModelUtils.getTableName(entityClass));
+        builder.includeProperties(ColumnDefinitionsGenerator.createPropertyDefinitions(subClassEntities, entity, entityClass));
+        if(!subClassEntities.isEmpty()) {
+            builder.setDiscriminatorColumnName(DiscriminatorColumnGenerator.getDiscriminatorColumnName(entityClass));
+            for(Map.Entry<String, Class<?>> subClassMapping : SubclassRetriever.getSubClassMapping(subClassEntities).entrySet()) {
+                builder.includeSubClass(subClassMapping.getKey(), (Class<? extends T>) subClassMapping.getValue());
             }
         }
-        return classDefinition;
+        return builder.build();
+    }
+    
+    /** Private constructor. */
+    private ClassDefinitionsGenerator() {
     }
 
-    /**
-     * Create a basic ClassDefinition with a tablename and persistent class.
-     * @param entities Entities from the metamodel
-     * @param entity Entity that will be made into a ClassDefinition
-     * @param persistentClass Persistent class
-     * @return ClassDefinition with a tablename and persistent class
-     */
-    private static <T> ClassDefinition.Builder<T> createBasicClassDefinition(Set<EntityType<?>> entities, EntityType<T> entity, Class<T> persistentClass) {
-        ClassDefinition.Builder<T> classDefinitionBuilder = null;
-        //See if Entity has got an @Table annotation
-        if (hasTableAnnotation(persistentClass)) {
-            //Create new ClassDefinition, enter table name from annotation, enter persistent class.
-            classDefinitionBuilder = newClassDefinition(persistentClass.getAnnotation(Table.class).name(), persistentClass);
-        } else if (SuperclassRetriever.getSuperClassEntity(entity, entities) == null) {
-            classDefinitionBuilder = tryToGetTableNameFromEntityAnnotation(persistentClass);
-        }
-        return classDefinitionBuilder;
-    }
-
-    /**
-     * Tries to get the desired table name from an @Entity(name="table_name") annotation. If not present, the SimpleClassName is used.
-     * @param persistentClass Persistent class
-     * @return String with either the @Entity(name=...) value or the SimpleClassName
-     */
-    private static <T> ClassDefinition.Builder<T> tryToGetTableNameFromEntityAnnotation(Class<T> persistentClass) {
-        // ^^ Checks if Entity is subclass of another Entity in the model. If it is it will be implemented by superclass.
-        //It could still have an @Entity name annotation, check this. Otherwise we'll take the simple class name.
-        if (hasEntityNameAnnotation(persistentClass)) {
-            return newClassDefinition(persistentClass.getAnnotation(Entity.class).name(), persistentClass);
-        } else {
-            //Create new ClassDefinition, use persistent classname as tablename, enter persistent class.
-            return newClassDefinition(persistentClass.getSimpleName(), persistentClass);
-        }
-    }
-
-    /**
-     * Returns the requested entity from JPA's metamodel.
-     * @param persistentClass Persistent class necessary to get the entity from the metamodel
-     * @param metamodel JPA's metamodel
-     * @return EntityType from JPA's metamodel
-     */
-    public static EntityType<?> getEntityFromMetamodel(Class<?> persistentClass, Metamodel metamodel) {
-        EntityType<?> entity = null;
-        try {
-            entity = metamodel.entity(persistentClass);
-        } catch (IllegalArgumentException e) {
-            LOGGER.warn("Class " + persistentClass.getName() + " is not in JPA's metamodel, check if it's annotated as @Entity.");
-        }
-        return entity;
-    }
-
-    /**
-     * Creates a new ClassDefinition with a table name and a persistent class.
-     * @param tableName Tablename
-     * @param persistentClass Persistent class
-     * @return ClassDefinition with a table name and persistent class
-     */
-    private static <T> ClassDefinition.Builder<T> newClassDefinition(String tableName, Class<T> persistentClass) {
-        ClassDefinition.Builder<T> classDefinitionBuilder = ClassDefinition.forClass(persistentClass);
-        classDefinitionBuilder.setTableName(tableName);
-        return classDefinitionBuilder;
-    }
-
-    /**
-     * Checks if a persistent class has an @Table annotation.
-     * @param persistentClass Persistent class 
-     * @return True if @Table annotation is present
-     */
-    private static boolean hasTableAnnotation(Class<?> persistentClass) {
-        for (Annotation annotation : persistentClass.getAnnotations()) {
-            if (annotation.annotationType().equals(Table.class)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Checks if a persistent class has an @Table annotation.
-     * @param persistentClass Persistent class 
-     * @return True if @Table annotation is present
-     */
-    private static boolean hasEntityNameAnnotation(Class<?> persistentClass) {
-        Boolean returnvalue = false;
-        for (Annotation annotation : persistentClass.getAnnotations()) {
-            if (annotation.annotationType().equals(Entity.class)) {
-                returnvalue = isEntityNameValid(annotation);
-            }
-        }
-        return returnvalue;
-    }
-
-    /**
-     * Checks if an @Entity annotation holds a valid table name.
-     * @param annotation @Entity annotation
-     * @return True if table name is not null and not ""
-     */
-    private static boolean isEntityNameValid(Annotation annotation) {
-        Entity annotatedEntity = (Entity) annotation;
-        if ((annotatedEntity.name() != null) && (!annotatedEntity.name().isEmpty())) {
-            return true;
-        }
-        return false;
-    }
 }

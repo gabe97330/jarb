@@ -14,19 +14,19 @@ import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.Metamodel;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
-import org.jarb.populator.excel.metamodel.ClassDefinition;
+import org.jarb.populator.excel.metamodel.EntityDefinition;
 import org.jarb.populator.excel.metamodel.PropertyDefinition;
 import org.jarb.populator.excel.metamodel.generator.ClassDefinitionsGenerator;
 import org.jarb.populator.excel.metamodel.generator.FieldAnalyzer;
 import org.jarb.populator.excel.workbook.Workbook;
-import org.jarb.populator.excel.workbook.reader.PoiExcelParser;
+import org.jarb.populator.excel.workbook.reader.PoiWorkbookParser;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 public class StoreJoinTableTest {
     private Class<?> persistentClass;
-    private ClassDefinition<?> classDefinition;
+    private EntityDefinition<?> classDefinition;
     private Workbook excel;
     private ExcelRow excelRow;
     private Field projectsField;
@@ -37,7 +37,7 @@ public class StoreJoinTableTest {
     @Before
     public void setupTestStoreExcelRecordValue() throws InvalidFormatException, IOException, SecurityException, NoSuchMethodException,
             IllegalArgumentException, InstantiationException, IllegalAccessException, InvocationTargetException {
-        excel = new PoiExcelParser().parse(new FileInputStream("src/test/resources/ExcelUnitTesting.xls"));
+        excel = new PoiWorkbookParser().parse(new FileInputStream("src/test/resources/ExcelUnitTesting.xls"));
 
         context = new ClassPathXmlApplicationContext("test-context.xml");
         entityManagerFactory = (EntityManagerFactory) context.getBean("entityManagerFactory");
@@ -55,10 +55,10 @@ public class StoreJoinTableTest {
 
         projectsField = persistentClass.getDeclaredField("projects");
 
-        classDefinition = ClassDefinition.forClass(persistentClass).setTableName("projects").build();
+        classDefinition = EntityDefinition.forClass(persistentClass).setTableName("projects").build();
 
         Metamodel metamodel = entityManagerFactory.getMetamodel();
-        EntityType<?> entity = ClassDefinitionsGenerator.getEntityFromMetamodel(domain.entities.Employee.class, metamodel);
+        EntityType<?> entity = metamodel.entity(domain.entities.Employee.class);
 
         classDefinition = ClassDefinitionsGenerator.createSingleClassDefinitionFromMetamodel(entityManagerFactory, entity, false);
 
